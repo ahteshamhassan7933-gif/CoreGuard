@@ -33,3 +33,4 @@ soroban/**/target/
 
 # nested repo of the parallel session (never tracked here)
 WEB-coreguard/
+.aider*
