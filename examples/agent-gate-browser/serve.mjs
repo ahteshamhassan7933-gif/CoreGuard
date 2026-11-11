@@ -23,7 +23,8 @@
  */
 
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as Stellar from "@stellar/stellar-sdk";
@@ -43,6 +44,9 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PAGE = join(HERE, "index.html");
+/** Where a REAL extension signature is recorded. Refused signatures write nothing. */
+const ATTESTATION = join(HERE, "..", "..", "docs", "evidence", "agent-gate-freighter-extension-signature.json");
+const sha256 = (text) => createHash("sha256").update(text, "utf8").digest("hex");
 const NETWORK = "testnet";
 const CEILING =
   "The gate, conformance and receipt verification are real; the envelope is never submitted here. " +
@@ -77,7 +81,7 @@ function readBody(req) {
  * One in-memory session: the mandate, the authorized intent and the keys the
  * demo signs with when the extension is absent. Nothing is written to disk.
  */
-export function createDemoSession({ now = () => new Date() } = {}) {
+export function createDemoSession({ now = () => new Date(), attestationPath = null } = {}) {
   const signer = Stellar.Keypair.random();
   const recipient = Stellar.Keypair.random();
   const operator = generateOperatorKeyPair();
@@ -207,11 +211,96 @@ export function createDemoSession({ now = () => new Date() } = {}) {
     };
   }
 
-  return { prepare, demoSign, tamper, complete, keys: { signer: signer.publicKey(), recipient: recipient.publicKey() } };
+  /**
+   * Record an EXTENSION signature as evidence — the one thing that may promote
+   * `agent-gate-freighter` from BUILT_UNVERIFIED to BUILT.
+   *
+   * Three gates before a byte is written, because the whole surface is worthless
+   * if this path can be talked into a file:
+   *   1. the caller must declare the extension (a local keypair may not attest);
+   *   2. the envelope must conform to the authorized intent;
+   *   3. the envelope must carry a VALID signature by the declared public key —
+   *      verified here with Ed25519, not taken on the page's word.
+   *
+   * What the artifact still cannot prove is written into it: the server verified
+   * the signature, not the software that produced it.
+   */
+  function attest(body = {}) {
+    if (!state.intent) throw new Error("prepare first");
+    if (body.declaredWallet !== "freighter-extension") {
+      return { ok: false, state: "REFUSED", error: "only a Freighter extension signature may be attested; a local keypair may not" };
+    }
+    const decoded = decodeEnvelope({ xdr: body.signedXdr, network: NETWORK });
+    if (!decoded.ok) return { ok: false, state: "REFUSED", error: decoded.error };
+
+    const execution = { ...decoded.execution, status: "SIGNED_NOT_SUBMITTED" };
+    const conformance = checkConformance({ intent: state.intent, execution });
+    if (conformance.verdict !== "VERIFIED") {
+      return { ok: false, state: "MISMATCH", conformance, error: "the envelope does not match the authorized intent" };
+    }
+
+    const wallet = typeof body.walletPublicKey === "string" ? body.walletPublicKey.trim() : "";
+    if (!/^G[A-Z2-7]{55}$/.test(wallet)) {
+      return { ok: false, state: "REFUSED", error: "walletPublicKey must be a Stellar public key" };
+    }
+
+    let signatureOk = false;
+    try {
+      const tx = Stellar.TransactionBuilder.fromXDR(body.signedXdr, NETWORK_PASSPHRASE[NETWORK]);
+      const keypair = Stellar.Keypair.fromPublicKey(wallet);
+      const hint = Buffer.from(keypair.signatureHint());
+      // SDK v17 exposes the XDR opaques as { value: Buffer } — not as methods.
+      const carried = tx.signatures.find((s) => Buffer.from(s.hint.value).equals(hint));
+      signatureOk = Boolean(carried) && keypair.verify(tx.hash(), Buffer.from(carried.signature.value));
+    } catch {
+      signatureOk = false;
+    }
+    if (!signatureOk) {
+      return { ok: false, state: "REFUSED", error: "the envelope carries no valid signature by the declared wallet key" };
+    }
+
+    const artifact = {
+      schema: "CoreGuard-Evidence/1",
+      artifact: "agent-gate-freighter-extension-signature",
+      version: "FREIGHTER-ADAPTER/1",
+      network: NETWORK,
+      attestedAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      wallet: {
+        publicKey: wallet,
+        declared: "freighter-extension",
+        provenance:
+          "declared by the page; the attestation verified the Ed25519 signature, not the software that produced it",
+      },
+      intent: state.intent,
+      policy: state.policy,
+      gate: { verdict: state.decision.verdict, reasons: state.decision.reasons },
+      envelope: { signedXdr: body.signedXdr, signedXdrSha256: sha256(body.signedXdr), txHash: execution.txHash },
+      conformance: { verdict: conformance.verdict, mismatches: conformance.mismatches },
+      promotion: {
+        surface: "agent-gate-freighter",
+        from: "BUILT_UNVERIFIED",
+        to: "BUILT",
+        command: "node scripts/agent-gate-freighter-attest.mjs --verify",
+      },
+      ceiling:
+        "An extension signature over an authorized envelope, verified by Ed25519. The artifact proves the KEY signed this intent; " +
+        "it does not prove which software held the key, that the demo was submitted, or that any external project adopted the gate.",
+    };
+    const target = attestationPath;
+    if (target) {
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+    }
+    return { ok: true, state: "ATTESTED", path: target, artifact };
+  }
+
+  return { prepare, demoSign, tamper, complete, attest, keys: { signer: signer.publicKey(), recipient: recipient.publicKey() } };
 }
 
 export function createDemoServer(options = {}) {
-  const session = options.session ?? createDemoSession(options);
+  const session = options.session ?? createDemoSession({
+    attestationPath: options.attestationPath === undefined ? ATTESTATION : options.attestationPath,
+  });
   const page = () => readFileSync(PAGE);
 
   const server = createServer(async (req, res) => {
@@ -229,6 +318,10 @@ export function createDemoServer(options = {}) {
         if (url.pathname === "/api/tamper") return json(res, 200, { ok: true, ...session.tamper(), ceiling: CEILING });
         if (url.pathname === "/api/complete") {
           const result = session.complete(body);
+          return json(res, result.ok ? 200 : 422, result);
+        }
+        if (url.pathname === "/api/attest") {
+          const result = session.attest(body);
           return json(res, result.ok ? 200 : 422, result);
         }
       }

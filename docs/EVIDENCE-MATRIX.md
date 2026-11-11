@@ -33,7 +33,7 @@ has adopted it.**
 | `stellar-agent-gate` — STELLAR-AGENT/1 policy matrix | BUILT | POLICY_GATE_EXECUTED — VERIFIED / REJECTED / HELD executed offline; `submit: NOT_PERFORMED` | NOT_BUILT — no agent deployment uses it | `docs/evidence/stellar-agent-gate-executed.json`; `node scripts/stellar-agent-gate-executed.mjs --verify` |
 | `agent-gate` — AGENT-GATE/1 gate, receipts, independent verifier | BUILT | TEST_EXECUTED — 14-case walkthrough; receipt tamper and chain-break refusals | NOT_BUILT — prototype, no signer, no submission | `packages/agent-gate/index.mjs`; `test/integrations/agent-payment-gate.test.mjs` |
 | `agent-gate-xdr` — builds unsigned, decodes signed envelopes | BUILT | EXECUTED — an envelope built here was signed and included on Stellar **testnet**, tx `7f863dd2512a82d1d10d6d221d311260698fc018c233113d5e5971fb9741b757` at ledger 5,665,413, then re-decoded offline; secret key, fee-bump and junk refused | NOT_BUILT — no external embedder | `docs/evidence/agent-gate-testnet-signature.json`; `node scripts/agent-gate-testnet-sign.mjs --verify` |
-| `agent-gate-freighter` — wallet signing adapter | BUILT_UNVERIFIED — a real Freighter extension has still never signed here; it was probed in the available browser and is not installed (`window.freighter` undefined) | TEST_EXECUTED — signed / empty / unsigned / swapped-bytes cases against an injected wallet, plus a chain-accepted signature carried through this adapter by a local keypair behind its interface | NOT_BUILT | `packages/agent-gate/adapters/freighter.mjs`; `docs/evidence/agent-gate-testnet-signature.json` |
+| `agent-gate-freighter` — wallet signing adapter | BUILT_UNVERIFIED — a real Freighter extension has still never signed here; it was probed in the available browser and is not installed (`window.freighter` undefined) | TEST_EXECUTED — signed / empty / unsigned / swapped-bytes cases against an injected wallet, plus a chain-accepted signature carried through this adapter by a local keypair behind its interface | NOT_BUILT | `packages/agent-gate/adapters/freighter.mjs`; `docs/evidence/agent-gate-testnet-signature.json`; promotion after a real extension signs: `node scripts/agent-gate-freighter-attest.mjs --verify` |
 | `agent-gate-verify-cli` — third-party verifier | BUILT | TEST_EXECUTED — exit 0/2/3/4 proven, including a receipt paired with a foreign envelope | NOT_BUILT — zero external users | `packages/agent-gate/verify-cli.mjs` |
 | `agent-gate-bench` — in-process timing | BUILT | TEST_EXECUTED — 2000 samples, p50/p95 recorded; offline ceiling stated | NOT_BUILT | `docs/evidence/agent-gate-bench.json` |
 | `agent-gate-browser-demo` — runnable page: gate → wallet → conformance → receipt | BUILT | TEST_EXECUTED — prepare / sign / verify driven over HTTP in the contract, a one-stroop tamper refused by name, junk REFUSED | NOT_BUILT — nothing is submitted, and the page states that a missing extension means a local keypair signed | `test/integrations/agent-gate-browser-demo.test.mjs`; `node examples/agent-gate-browser/serve.mjs` |
@@ -77,7 +77,7 @@ today and cannot adopt the latter today.
 
 ## Totals
 
-Suite total: **1508 / 1508 pass**, machine-pinned in
+Suite total: **1511 / 1511 pass**, machine-pinned in
 `docs/state-snapshot.json` (the only authoritative count in the repo).
 Boundary audit: **0 violations**; file count lives in the same snapshot.
 

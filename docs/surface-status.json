@@ -123,7 +123,7 @@
       "integration": "NOT_BUILT",
       "matrixRow": true,
       "evidence": ["docs/evidence/agent-gate-testnet-signature.json", "test/integrations/agent-gate-envelope.test.mjs"],
-      "note": "Contract verified with an injected wallet: signed, empty, unsigned and swapped-bytes cases. The signing path also carried a real testnet signature to a ledger, but with a local keypair behind the Freighter interface — the extension was probed in the available browser and is NOT installed (window.freighter undefined), so a real extension has still never signed here."
+      "note": "Contract verified with an injected wallet: signed, empty, unsigned and swapped-bytes cases. The signing path also carried a real testnet signature to a ledger, but with a local keypair behind the Freighter interface — the extension was probed in the available browser and is NOT installed (window.freighter undefined), so a real extension has still never signed here. A real extension promotes this surface to BUILT by signing in the demo, which writes docs/evidence/agent-gate-freighter-extension-signature.json only after the server verifies an Ed25519 signature by the declared wallet key; node scripts/agent-gate-freighter-attest.mjs --verify re-derives it and --promote edits this registry."
     },
     {
       "id": "agent-gate-verify-cli",

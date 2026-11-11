@@ -25,7 +25,7 @@ CoreGuard is a fail-closed execution-truth layer for agent-to-agent jobs. Money 
 
 | Item / العنصر | Value / القيمة | Source / المصدر |
 |---|---|---|
-| **Test suite / مجموعة الاختبارات** | **1508 / 1508 PASS (measured)** | [`npm test`](../package.json) · [`state-snapshot.json`](state-snapshot.json) |
+| **Test suite / مجموعة الاختبارات** | **1511 / 1511 PASS (measured)** | [`npm test`](../package.json) · [`state-snapshot.json`](state-snapshot.json) |
 | **Boundary audit / تدقيق الحدود** | **1052 files · 0 violations** | [`npm run boundary:audit`](../package.json) |
 | **Claims audit / تدقيق الادعاءات** | **28 claims · VERIFIED 16 · 0 violations** | [`npm run claims:audit`](../package.json) · [`claims-registry.json`](claims-registry.json) |
 | **Docs-node contract / عقود التوثيق القابلة للتنفيذ** | **124 executed · 79 skip-listed · 27 docs covered** | [`../test/ci/docs-node-contract.test.js`](../test/ci/docs-node-contract.test.js) |
@@ -66,7 +66,7 @@ node demo.mjs
 ```
 
 **Expected / المتوقع:**
-- `npm test` → **1508/1508 pass, fail 0**
+- `npm test` → **1511/1511 pass, fail 0**
 - `node demo.mjs` → shows **`UNKNOWN → HELD`**
 - `npm run claims:audit` → **CLAIM-AUDIT: PASS**
 - `npm run release:gate:independence` → **GATE_PASS**

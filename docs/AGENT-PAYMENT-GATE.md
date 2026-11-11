@@ -133,6 +133,29 @@ the available browser, so "Freighter works" is still **NOT_PROVEN**, and
 `integration` stays `NOT_BUILT` — no external project runs this, and one
 self-funded testnet transfer is not adoption.
 
+### 5.2 The one command that may promote Freighter
+
+The browser demo carries a fifth button, *Record extension signature*. It exists
+only for a real extension, and the server refuses everything else by name:
+
+| Refusal, before any byte is written | Why |
+|---|---|
+| `declaredWallet` is not `freighter-extension` | a local keypair is not evidence |
+| the envelope does not conform to the authorized intent | a signature over other bytes proves nothing |
+| no valid Ed25519 signature by the declared key | the page's word is not a signature |
+
+When all three pass, `docs/evidence/agent-gate-freighter-extension-signature.json`
+is written. `node scripts/agent-gate-freighter-attest.mjs --verify` re-derives it
+(offline: XDR digest, decode, conformance, signature) and `--promote` flips
+`docs/surface-status.json` to `code: BUILT`. With no artifact the verifier exits
+`3` and prints that the surface **stays `BUILT_UNVERIFIED`** — which is the
+current, truthful state.
+
+**What the artifact can and cannot say.** It proves the *key* signed the
+*authorized intent*. It does not prove which software held the key, that the
+envelope was submitted, or that anyone adopted the gate. Those limits are
+written into the artifact itself, so a promotion cannot outrun them.
+
 ### Measured performance
 
 `docs/evidence/agent-gate-bench.json` — 2000 in-process samples on

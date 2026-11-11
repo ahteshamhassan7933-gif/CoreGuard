@@ -51,7 +51,7 @@ CoreGuard is a verifiable execution truth layer. It produces independently verif
 ### 3. Technical Feasibility
 
 **Already built and tested:**
-- ✅ 1508 tests passing (machine-pinned)
+- ✅ 1511 tests passing (machine-pinned)
 - ✅ 1052 files, 0 boundary violations
 - ✅ 10,000-run benchmark: 0 false accept, 0 false reject
 - ✅ Soroban commitment anchor deployed on Stellar MAINNET (`CCKA2GYVILX7YZVSXGVIHOPNLTRBBF2SSWKBTQBIE7M67N5N2QMMXPSP`)
@@ -105,7 +105,7 @@ CoreGuard is a verifiable execution truth layer. It produces independently verif
 - **Twitter**: https://x.com/CoreGuardGlobal
 
 **Experience:**
-- Built CoreGuard from scratch (1508 tests, 1052 files)
+- Built CoreGuard from scratch (1511 tests, 1052 files)
 - Deployed 2 contracts on Core DAO mainnet
 - Deployed Soroban commitment anchor on Stellar MAINNET (`CCKA2GYVILX7YZVSXGVIHOPNLTRBBF2SSWKBTQBIE7M67N5N2QMMXPSP`) and executed the first owner-authorized anchor CALL (INVOKED, tx `69044807410f65027c1227f4e525ad83f23a6cb1a2bb79790d82849c5dbc9fec`, ledger 65,337,373)
 - Executed the first SIGNED funded mainnet swap (DEX-GATE/1 gated, CONFIRMED, tx `ac2a7990b3387aab96b197c0c921d57756bd25d65ad0e75b93561ded640b9097`, ledger 65,338,112)
@@ -132,7 +132,7 @@ CoreGuard is a verifiable execution truth layer. It produces independently verif
 ### Traction (on other chains)
 
 - ✅ Core DAO mainnet: 2 contracts deployed & verified
-- ✅ 1508 tests passing
+- ✅ 1511 tests passing
 - ✅ 10,000-run benchmark: 0 false accept, 0 false reject
 - ✅ 1,000/1,000 mutants refused
 - ✅ 18/18 release gate legs pass

@@ -30,7 +30,7 @@ if(g.allowed){ /* VERIFIED only - never auto-pay */ }
 - **Real problem**: AI agents need to prove conformance before spending
 - **Unique**: Deterministic replay-before-submit with fail-closed (UNKNOWN->HELD)
 - **Ecosystem-wide**: ONE engine for ALL three networks
-- **Working proof**: Live Stellar testnet demo + 1508 tests passing
+- **Working proof**: Live Stellar testnet demo + 1511 tests passing
 - **Measurable**: All claims from committed tree, zero fabrication
 - **AI-agent native**: Built for the agent economy
 - **Undeniable**: Anyone can replay and verify

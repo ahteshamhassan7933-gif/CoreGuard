@@ -65,6 +65,14 @@ the Freighter interface**, not the extension.
 offline (envelope hash, operations, conformance, receipt signature). Read it as:
 the signing path is real and chain-accepted; the wallet is still missing.
 
+When a real extension *does* sign, the demo's fifth button records it. The server
+refuses a local keypair, a non-conforming envelope and a missing signature, and
+only a valid Ed25519 signature by the declared wallet key writes
+`docs/evidence/agent-gate-freighter-extension-signature.json`. Then
+`node scripts/agent-gate-freighter-attest.mjs --verify` re-derives the artifact
+and `--promote` moves the registry to `code: BUILT`. Until that file exists the
+verifier exits `3` and says the surface stays `BUILT_UNVERIFIED`.
+
 ## Run it
 
 ```bash

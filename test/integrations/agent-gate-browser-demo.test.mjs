@@ -19,9 +19,12 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
+import * as Stellar from "@stellar/stellar-sdk";
 
 import { createDemoServer } from "../../examples/agent-gate-browser/serve.mjs";
 import { decodeEnvelope } from "../../packages/agent-gate/adapters/stellar-xdr.mjs";
@@ -30,8 +33,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
 const PAGE = join(REPO, "examples", "agent-gate-browser", "index.html");
 
-async function withServer(fn) {
-  const server = createDemoServer();
+async function withServer(fn, options = {}) {
+  const server = createDemoServer(options);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;
@@ -112,4 +115,105 @@ test("junk input is REFUSED instead of thrown", async () => {
     assert.equal(data.state, "REFUSED");
     assert.match(data.error, /decode failed|secret key/i);
   });
+});
+
+/* ---- the promotion path: only a REAL key signature may write evidence ---- */
+
+function signWith(keypair, xdr) {
+  const tx = Stellar.TransactionBuilder.fromXDR(xdr, Stellar.Networks.TESTNET);
+  tx.sign(keypair);
+  return tx.toXDR();
+}
+
+function newArtifactPath() {
+  return join(mkdtempSync(join(tmpdir(), "cg-attest-")), "extension-signature.json");
+}
+
+test("attestation is refused when the declared key did not sign, and writes nothing", async () => {
+  const target = newArtifactPath();
+  await withServer(async (base) => {
+    await post(base, "/api/prepare", {});
+    const signed = await post(base, "/api/demo-sign", {});
+    const stranger = Stellar.Keypair.random().publicKey();
+    const { status, data } = await post(base, "/api/attest", {
+      signedXdr: signed.data.signedXdr,
+      walletPublicKey: stranger,
+      declaredWallet: "freighter-extension",
+    });
+    assert.equal(status, 422);
+    assert.equal(data.state, "REFUSED");
+    assert.match(data.error, /no valid signature by the declared wallet key/);
+    assert.throws(() => readFileSync(target, "utf8"), /ENOENT/, "a refused attestation must not write an artifact");
+  }, { attestationPath: target });
+
+  // A local keypair may not attest at all, even with a perfectly valid signature.
+  await withServer(async (base) => {
+    const wallet = Stellar.Keypair.random();
+    const prepared = await post(base, "/api/prepare", { source: wallet.publicKey() });
+    const { status, data } = await post(base, "/api/attest", {
+      signedXdr: signWith(wallet, prepared.data.xdr),
+      walletPublicKey: wallet.publicKey(),
+      declaredWallet: "local-demo-keypair",
+    });
+    assert.equal(status, 422);
+    assert.match(data.error, /only a Freighter extension signature may be attested/);
+  }, { attestationPath: target });
+});
+
+test("a signature by the declared key writes an artifact that names its own ceiling", async () => {
+  const target = newArtifactPath();
+  const wallet = Stellar.Keypair.random();
+  await withServer(async (base) => {
+    const prepared = await post(base, "/api/prepare", { source: wallet.publicKey() });
+    const signedXdr = signWith(wallet, prepared.data.xdr);
+    const { status, data } = await post(base, "/api/attest", {
+      signedXdr,
+      walletPublicKey: wallet.publicKey(),
+      declaredWallet: "freighter-extension",
+    });
+    assert.equal(status, 200);
+    assert.equal(data.state, "ATTESTED");
+
+    const artifact = JSON.parse(readFileSync(target, "utf8"));
+    assert.equal(artifact.artifact, "agent-gate-freighter-extension-signature");
+    assert.equal(artifact.wallet.publicKey, wallet.publicKey());
+    assert.equal(artifact.wallet.declared, "freighter-extension");
+    assert.match(artifact.wallet.provenance, /not the software that produced it/);
+    assert.equal(artifact.conformance.verdict, "VERIFIED");
+    assert.equal(artifact.promotion.to, "BUILT");
+    assert.match(artifact.ceiling, /does not prove which software held the key/);
+
+    // The verifier re-derives it offline and only then offers the promotion.
+    const verified = spawnSync(process.execPath, ["scripts/agent-gate-freighter-attest.mjs", "--verify", "--artifact", target], {
+      cwd: REPO,
+      encoding: "utf8",
+      timeout: 60_000,
+    });
+    assert.equal(verified.status, 0, `${verified.stdout}\n${verified.stderr}`);
+    assert.match(verified.stdout, /FREIGHTER-ATTEST: PASS/);
+
+    // Tampering with the recorded signature must break the re-derivation.
+    const broken = { ...artifact, wallet: { ...artifact.wallet, publicKey: Stellar.Keypair.random().publicKey() } };
+    const brokenPath = `${target}.broken.json`;
+    writeFileSync(brokenPath, JSON.stringify(broken));
+    const refused = spawnSync(process.execPath, ["scripts/agent-gate-freighter-attest.mjs", "--verify", "--artifact", brokenPath], {
+      cwd: REPO,
+      encoding: "utf8",
+      timeout: 60_000,
+    });
+    assert.equal(refused.status, 1, "a swapped wallet key must fail the signature check");
+    assert.match(refused.stderr, /no valid signature by wallet.publicKey/);
+  }, { attestationPath: target });
+});
+
+test("without an artifact the surface stays unpromoted", () => {
+  const missing = newArtifactPath();
+  const result = spawnSync(process.execPath, ["scripts/agent-gate-freighter-attest.mjs", "--verify", "--artifact", missing], {
+    cwd: REPO,
+    encoding: "utf8",
+    timeout: 60_000,
+  });
+  assert.equal(result.status, 3);
+  assert.match(result.stdout, /FREIGHTER-ATTEST: NOT_PERFORMED/);
+  assert.match(result.stdout, /stays BUILT_UNVERIFIED/);
 });

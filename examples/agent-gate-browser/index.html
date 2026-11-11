@@ -37,6 +37,7 @@
     <button id="btnSign" disabled>2) وقّع · Sign</button>
     <button id="btnTamper" disabled>3) اختبر التحايل · Tamper</button>
     <button id="btnDone" disabled>4) تحقق · Verify</button>
+    <button id="btnAttest" disabled title="متاح فقط عندما توقّع الإضافة فعلًا">5) وثّق توقيع الإضافة · Record extension signature</button>
   </div>
   <pre id="out">—</pre>
 </div>
@@ -68,7 +69,31 @@
     done: document.getElementById("btnDone"),
   };
 
-  let state = { xdr: null, txHash: null, signedXdr: null, signer: null };
+  let state = { xdr: null, txHash: null, signedXdr: null, signer: null, walletPublicKey: null };
+
+  const attestBtn = document.getElementById("btnAttest");
+  // The attestation button exists only for a real extension: a local keypair is
+  // not evidence, and the server refuses it by name anyway.
+  function setAttestAvailable(available) {
+    attestBtn.disabled = !available;
+    attestBtn.title = available
+      ? "سيُكتب أثر ملتزم بهذا التوقيع"
+      : "متاح فقط عندما توقّع إضافة Freighter فعلًا";
+  }
+  setAttestAvailable(false);
+
+  attestBtn.onclick = async () => {
+    if (!state.walletPublicKey && api && typeof api.getPublicKey === "function") {
+      try { state.walletPublicKey = await api.getPublicKey(); } catch { /* leave null */ }
+    }
+    const { data } = await post("/api/attest", {
+      signedXdr: state.signedXdr,
+      walletPublicKey: state.walletPublicKey,
+      declaredWallet: "freighter-extension",
+    });
+    setStep(data.state === "ATTESTED" ? "ATTESTED — evidence written" : (data.state ?? "REFUSED"), data.state === "ATTESTED" ? "ALLOW" : "REFUSED");
+    show(data);
+  };
 
   function show(value) {
     out.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
@@ -108,7 +133,8 @@
       }
     }
     const { data } = await post("/api/prepare", { source, extensionPresent: Boolean(api) });
-    state = { xdr: data.xdr, txHash: data.txHash, signedXdr: null, signer: null };
+    state = { xdr: data.xdr, txHash: data.txHash, signedXdr: null, signer: null, walletPublicKey: source ?? null };
+    setAttestAvailable(false);
     setStep(`gate: ${data.decision.verdict}`, data.decision.verdict);
     show({
       gate: { verdict: data.decision.verdict, reasons: data.decision.reasons },
@@ -128,6 +154,7 @@
         const returned = await api.signTransaction(state.xdr, { network: "TESTNET", accountToSign });
         state.signedXdr = typeof returned === "string" ? returned : (returned?.signedTxXdr ?? returned?.signedXDR ?? returned?.xdr);
         state.signer = "freighter-extension";
+        setAttestAvailable(true);
       } catch (e) {
         // A refused popup is NOT a signature. Say so and stop.
         setStep("wallet refused", "REFUSED");
@@ -138,6 +165,7 @@
       const { data } = await post("/api/demo-sign", {});
       state.signedXdr = data.signedXdr;
       state.signer = data.signer;
+      setAttestAvailable(false); // a local keypair may never be attested
     }
     setStep(`signed by ${state.signer}`, "ALLOW");
     show({ signer: state.signer, txHash: state.txHash, note: "the envelope now leaves the wallet as bytes; the gate never saw a key" });
